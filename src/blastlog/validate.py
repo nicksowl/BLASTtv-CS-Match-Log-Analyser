@@ -91,7 +91,11 @@ def main() -> None:
     if "msg" not in df.columns:
         raise SystemExit("Parsed file has no 'msg' column. Something is wrong.")
 
-    kills = df[df["msg"].str.contains(KILL_SUBSTR, na=False)].copy()
+    msg = df["msg"].astype(str)
+    kills = df[
+        msg.str.contains(KILL_SUBSTR, na=False) &
+        ~msg.str.contains(" killed other ", na=False)
+    ].copy()
     
     if len(kills) > 0:
         missing_report(
@@ -105,7 +109,7 @@ def main() -> None:
             title="Kill events only"
         )
     
-    print("\nKILL CHECK")
+    print("Kill rows in parsed DF (PvP only):", len(kills))
     print("Kill rows in parsed DF (msg contains ' killed '):", len(kills))
 
     if len(raw_kill_lines) and len(kills) == 0:

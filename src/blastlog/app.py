@@ -19,8 +19,11 @@ def load_events(path: str) -> pd.DataFrame:
 
 
 def kill_events(df: pd.DataFrame) -> pd.DataFrame:
-    # Most reliable: use the raw message substring
-    return df[df["msg"].astype(str).str.contains(" killed ", na=False)].copy()
+    msg = df["msg"].astype(str)
+    return df[
+        msg.str.contains(" killed ", na=False) &
+        ~msg.str.contains(" killed other ", na=False)
+    ].copy()
 
 
 def main() -> None:

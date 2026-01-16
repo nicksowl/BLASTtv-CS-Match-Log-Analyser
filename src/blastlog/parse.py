@@ -152,7 +152,9 @@ def iter_parsed_lines(path: Path) -> Iterator[ParsedLine]:
         "trigger_round_officially_end",
         "trigger_round_ended",
     }
-    RESTART_EVENTS = {"trigger_restart_round_1_second"}
+    RESTART_EVENTS = {
+        "trigger_restart_round_1_second",
+    }
 
     with path.open("r", encoding="utf-8", errors="replace") as f:
         for raw in f:
@@ -196,8 +198,8 @@ def iter_parsed_lines(path: Path) -> Iterator[ParsedLine]:
             weapon = None
             is_headshot = None
 
-            # Robust kill extraction (don’t rely on a strict full-line regex)
-            if " killed " in msg:
+            # Kill extraction (exclude map-object kills: 'killed other "func_breakable"', props, etc.)
+            if " killed " in msg and " killed other " not in msg:
                 players = first_n_players(msg, n=2)
                 if len(players) >= 2:
                     attacker = players[0]
