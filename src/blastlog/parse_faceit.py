@@ -10,11 +10,9 @@ from typing import Optional, Tuple, List, Dict, Union
 # Regex patterns (compiled once)
 # ----------------------------
 
-# Any FACEIT tag variant (FACEIT, FACEIT^, etc.) anywhere in the line
 FACEIT_ANY_RE = re.compile(r"FACEIT\^*", re.IGNORECASE)
 
-# Timestamp prefix in the raw server log
-# Example: 11/28/2021 - 20:26:21:
+# Timestamp prefix: 11/28/2021 - 20:26:21:
 LOG_TS_RE = re.compile(
     r"^(?P<date>\d{2}/\d{2}/\d{4}) - (?P<time>\d{2}:\d{2}:\d{2}):\s*"
 )
@@ -34,7 +32,6 @@ FACEIT_WINNER = re.compile(
 FACEIT_SCORE_ANY = re.compile(r"\[\s*\d+\s*-\s*\d+\s*\]")
 FACEIT_SCORE_VALUE = re.compile(r"\[\s*(?P<a>\d+)\s*-\s*(?P<b>\d+)\s*\]")
 
-# The first time we can reliably extract both teams (you observed it includes [0 - 1])
 FACEIT_SCORE_MARKER = re.compile(r"\[\s*0\s*-\s*1\s*\]")
 
 # Capture: <teamA> [0 - 1] <teamB>
@@ -42,6 +39,11 @@ FACEIT_TEAMS_FROM_SCORE = re.compile(
     r"(?P<left>.+?)\s*\[\s*0\s*-\s*1\s*\]\s*(?P<right>.+)",
     re.IGNORECASE,
 )
+
+# Extract rounds played from MatchStatus lines:
+# Example fragment: "MatchStatus: Score: 6:16 ... RoundsPlayed: 22 ..."
+ROUNDS_PLAYED_RE = re.compile(r"\bRoundsPlayed:\s*(?P<rounds>\d+)\b", re.IGNORECASE)
+
 
 # Types for JSON-friendly output
 JSONScalar = Union[str, int, float, bool, None]
@@ -54,11 +56,6 @@ JSONValue = Union[JSONScalar, List["JSONValue"], Dict[str, "JSONValue"]]
 
 @dataclass
 class ParsedLog:
-    """
-    Parsed results for one match log file.
-    - faceit_lines: all raw log lines that contain FACEIT tag (kept intact)
-    - faceit_key_events: extracted, JSON-friendly match summary
-    """
     faceit_lines: List[str]
     faceit_key_events: Dict[str, JSONValue]
 
@@ -68,10 +65,6 @@ class ParsedLog:
 # ----------------------------
 
 def extract_faceit_lines(log_path: Union[str, Path]) -> List[str]:
-    """
-    Read a log file and return ALL lines containing FACEIT (FACEIT^ variants too).
-    Keeps the whole original line (timestamp included), only strips trailing newline.
-    """
     path = Path(log_path)
     faceit_lines: List[str] = []
 
@@ -84,15 +77,6 @@ def extract_faceit_lines(log_path: Union[str, Path]) -> List[str]:
 
 
 def extract_dt_parts(line: str) -> Optional[Tuple[str, str]]:
-    """
-    Extract (date, time) from the log prefix.
-
-    Input line example:
-      11/28/2021 - 20:26:21: [FACEIT] ...
-
-    Returns:
-      ("11/28/2021", "20:26:21") or None if the prefix doesn't match.
-    """
     m = LOG_TS_RE.match(line)
     if not m:
         return None
@@ -100,66 +84,35 @@ def extract_dt_parts(line: str) -> Optional[Tuple[str, str]]:
 
 
 def strip_prefix_timestamp(line: str) -> str:
-    """
-    Remove the timestamp prefix (MM/DD/YYYY - HH:MM:SS:) from the front of a log line.
-    Useful when you want to parse only the event payload.
-    """
     return LOG_TS_RE.sub("", line).strip()
 
 
 def clean_team_name(raw: str) -> str:
-    """
-    Clean up team name extractions which can contain:
-      - control chars (e.g. \u0004)
-      - [FACEIT] tags
-      - surrounding quotes
-      - leading "Team "
-      - stray punctuation/whitespace
-    """
     s = raw.strip()
+    s = re.sub(r"[\x00-\x1F\x7F]", "", s)  # control chars
+    s = re.sub(r"\[\s*FACEIT\^*\s*\]", "", s, flags=re.IGNORECASE)  # FACEIT tags
 
-    # Remove ASCII control characters (includes \u0004)
-    s = re.sub(r"[\x00-\x1F\x7F]", "", s)
-
-    # Remove FACEIT tags anywhere in the string
-    s = re.sub(r"\[\s*FACEIT\^*\s*\]", "", s, flags=re.IGNORECASE)
-
-    # Strip surrounding quotes if present
     if (s.startswith('"') and s.endswith('"')) or (s.startswith("'") and s.endswith("'")):
         s = s[1:-1].strip()
 
-    # Remove leading "Team "
     s = re.sub(r"^\s*Team\s+", "", s, flags=re.IGNORECASE).strip()
-
-    # Trim and normalise whitespace
     s = s.strip(" \t\r\n|:-.!,")
     s = re.sub(r"\s+", " ", s).strip()
-
     return s
 
 
 def extract_two_teams_from_score_line(line: str) -> Optional[Tuple[str, str]]:
-    """
-    Given a FACEIT line containing the [0 - 1] marker, try to extract both teams.
-
-    We preserve the order they appear in that line:
-      team_1 = left side, team_2 = right side
-    """
     payload = strip_prefix_timestamp(line)
     m = FACEIT_TEAMS_FROM_SCORE.search(payload)
     if not m:
         return None
 
-    left = m.group("left")
+    left = m.group("left").split(":")[-1].strip()
     right = m.group("right")
-
-    # Reduce left-side noise: keep text after the last ":" if present
-    left = left.split(":")[-1].strip()
 
     team_1 = clean_team_name(left)
     team_2 = clean_team_name(right)
 
-    # Avoid garbage captures
     if len(team_1) < 2 or len(team_2) < 2:
         return None
 
@@ -167,10 +120,6 @@ def extract_two_teams_from_score_line(line: str) -> Optional[Tuple[str, str]]:
 
 
 def extract_score_from_line(line: str) -> Optional[str]:
-    """
-    Extract a score from a line containing something like [16 - 6].
-    Returns a canonical format like "16-6".
-    """
     m = FACEIT_SCORE_VALUE.search(line)
     if not m:
         return None
@@ -178,13 +127,6 @@ def extract_score_from_line(line: str) -> Optional[str]:
 
 
 def calculate_match_length_pretty(start_dt: Optional[str], end_dt: Optional[str]) -> Optional[str]:
-    """
-    Calculate match duration from:
-      start_dt/end_dt formatted as "MM/DD/YYYY - HH:MM:SS"
-
-    Returns:
-      "HH:MM:SS" (pretty format), or None if missing/unparseable/negative.
-    """
     if not start_dt or not end_dt:
         return None
 
@@ -204,35 +146,33 @@ def calculate_match_length_pretty(start_dt: Optional[str], end_dt: Optional[str]
     return f"{h:02d}:{m:02d}:{s:02d}"
 
 
+def calculate_total_rounds(log_path: Union[str, Path]) -> Optional[int]:
+    """
+    Despite the name, this returns the round count for this match by extracting:
+      RoundsPlayed: <n>
+    """
+    path = Path(log_path)
+    rounds: Optional[int] = None
+
+    with path.open("r", encoding="utf-8", errors="replace") as f:
+        for line in f:
+            m = ROUNDS_PLAYED_RE.search(line)
+            if m:
+                rounds = int(m.group("rounds"))  # keep the last seen value (final status)
+    return rounds
+
+
 # ----------------------------
 # High-level extraction
 # ----------------------------
 
-def extract_faceit_match_key_events(faceit_lines: List[str]) -> Dict[str, JSONValue]:
-    """
-    Extract a compact match summary from FACEIT lines.
-
-    Current JSON structure (in this order for readability):
-      - date
-      - start_dt
-      - end_dt
-      - match_length
-      - map
-      - team_1
-      - team_2
-      - winning_team
-      - final_score
-
-    Notes:
-      - team_1/team_2 are extracted from the FIRST line that contains [0 - 1]
-        and they keep the order they appear in that line.
-      - final_score is taken from the LAST FACEIT line containing [x - y].
-      - winning_team is extracted from the last "Team ... won" line.
-    """
+def extract_faceit_match_key_events(
+    faceit_lines: List[str],
+    total_rounds: Optional[int] = None,
+) -> Dict[str, JSONValue]:
     match_date: Optional[str] = None
     start_dt: Optional[str] = None
     end_dt: Optional[str] = None
-    match_length: Optional[str] = None
 
     map_name: Optional[str] = None
     team_1: Optional[str] = None
@@ -241,13 +181,11 @@ def extract_faceit_match_key_events(faceit_lines: List[str]) -> Dict[str, JSONVa
     final_score: Optional[str] = None
 
     for line in faceit_lines:
-        # Map (first occurrence wins)
         if map_name is None:
             m_map = FACEIT_MAP.search(line)
             if m_map:
                 map_name = m_map.group("map").lower()
 
-        # Match start dt (first matching line wins)
         if start_dt is None and FACEIT_MATCH_START.search(line):
             parts = extract_dt_parts(line)
             if parts:
@@ -255,13 +193,11 @@ def extract_faceit_match_key_events(faceit_lines: List[str]) -> Dict[str, JSONVa
                 start_dt = f"{d} - {t}"
                 match_date = match_date or d
 
-        # Team names (first [0 - 1] line wins, preserving order)
         if team_1 is None and team_2 is None and FACEIT_SCORE_MARKER.search(line):
             teams = extract_two_teams_from_score_line(line)
             if teams:
                 team_1, team_2 = teams
 
-        # Match end dt + winning team (take the last win line as final truth)
         if FACEIT_WIN_LINE.search(line):
             parts = extract_dt_parts(line)
             if parts:
@@ -273,7 +209,6 @@ def extract_faceit_match_key_events(faceit_lines: List[str]) -> Dict[str, JSONVa
             if m_win:
                 winning_team = clean_team_name(m_win.group("team"))
 
-        # Final score: last score bracket wins
         if FACEIT_SCORE_ANY.search(line):
             score = extract_score_from_line(line)
             if score:
@@ -281,7 +216,6 @@ def extract_faceit_match_key_events(faceit_lines: List[str]) -> Dict[str, JSONVa
 
     match_length = calculate_match_length_pretty(start_dt, end_dt)
 
-    # Build dict in the requested order (Python 3.7+ preserves insertion order)
     return {
         "date": match_date,
         "start_dt": start_dt,
@@ -292,24 +226,23 @@ def extract_faceit_match_key_events(faceit_lines: List[str]) -> Dict[str, JSONVa
         "team_2": team_2,
         "winning_team": winning_team,
         "final_score": final_score,
+        "total_rounds": total_rounds,  # actually rounds played (e.g. 22)
     }
 
 
 def parse_log(log_path: Union[str, Path]) -> ParsedLog:
-    """
-    Parse a log file and return:
-      - all FACEIT lines
-      - derived match key events (JSON-ready)
-    """
     faceit_lines = extract_faceit_lines(log_path)
-    faceit_key_events = extract_faceit_match_key_events(faceit_lines)
+
+    total_rounds = calculate_total_rounds(log_path)
+
+    faceit_key_events = extract_faceit_match_key_events(
+        faceit_lines=faceit_lines,
+        total_rounds=total_rounds,
+    )
     return ParsedLog(faceit_lines=faceit_lines, faceit_key_events=faceit_key_events)
 
 
 def dump_json(data: Dict[str, JSONValue], out_path: Union[str, Path]) -> Path:
-    """
-    Dump a JSON file to disk, creating parent directories if needed.
-    """
     path = Path(out_path)
     path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -327,12 +260,10 @@ if __name__ == "__main__":
     log_file = Path("data/raw/blast-match-data-Nuke.txt")
     parsed = parse_log(log_file)
 
-    # Print all FACEIT lines (debug/visibility)
     print(f"FACEIT lines found: {len(parsed.faceit_lines)}\n")
     for i, line in enumerate(parsed.faceit_lines, start=1):
         print(f"{i:04d}: {line}")
 
-    # Dump JSON summary
     out_file = dump_json(parsed.faceit_key_events, "data/processed/faceit_match_key_events.json")
     print(f"\nWrote: {out_file}")
     print(f"\nOutput:")
