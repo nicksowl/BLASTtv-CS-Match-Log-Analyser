@@ -10,7 +10,7 @@ from typing import Any, Iterable, Mapping, Optional
 # Paths 
 # -----------------------
 LOG_PATH: Path = Path("data/raw/blast-match-data-Nuke.txt")
-KEY_EVENT_PATH: Path = Path("data/processed/faceit_match_key_events.json")
+KEY_EVENT_PATH: Path = Path("data/processed/match_faceit_key_events.json")
 OUT_PATH: Path = Path("data/processed/match_start_end_roster_accolade.json")
 
 TS_FMT: str = "%m/%d/%Y - %H:%M:%S"

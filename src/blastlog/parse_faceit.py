@@ -265,7 +265,7 @@ if __name__ == "__main__":
     for i, line in enumerate(parsed.faceit_lines, start=1):
         print(f"{i:04d}: {line}")
 
-    out_file = dump_json(parsed.faceit_key_events, "data/processed/faceit_match_key_events.json")
+    out_file = dump_json(parsed.faceit_key_events, "data/processed/match_faceit_key_events.json")
     print(f"\nWrote: {out_file}")
     print(f"\nOutput:")
     print(json.dumps(parsed.faceit_key_events, indent=2))
