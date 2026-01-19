@@ -2254,9 +2254,6 @@
 11/28/2021 - 20:45:04: "Boombl4<29><STEAM_1:0:92970669><TERRORIST>" dropped "knife"
 11/28/2021 - 20:45:04: "Boombl4<29><STEAM_1:0:92970669><TERRORIST>" dropped "glock"
 11/28/2021 - 20:45:04: "ZywOo<26><STEAM_1:1:76700232><CT>" [739 175 -614] killed "Boombl4<29><STEAM_1:0:92970669><TERRORIST>" [871 -108 -576] with "m4a1_silencer" (headshot)
-
-!!!
-
 11/28/2021 - 20:45:04: "ZywOo<7><STEAM_1:1:76700232><CT>" money change 100+300 = $400 (tracked)
 11/28/2021 - 20:45:04: "b1t<13><STEAM_1:0:143170874><TERRORIST>" money change 1700+300 = $2000 (tracked)
 11/28/2021 - 20:45:04: "b1t<32><STEAM_1:0:143170874><TERRORIST>" triggered "Planted_The_Bomb" at bombsite B

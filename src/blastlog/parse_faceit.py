@@ -42,6 +42,7 @@ FACEIT_TEAMS_FROM_SCORE = re.compile(
 
 # Extract rounds played from MatchStatus lines:
 # Example fragment: "MatchStatus: Score: 6:16 ... RoundsPlayed: 22 ..."
+# Not inside the FACEIT block, but useful to get the actual rounds played in same file.
 ROUNDS_PLAYED_RE = re.compile(r"\bRoundsPlayed:\s*(?P<rounds>\d+)\b", re.IGNORECASE)
 
 
