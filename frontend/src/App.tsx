@@ -18,8 +18,7 @@ import SportsEsportsIcon from "@mui/icons-material/SportsEsports";
 import { loadParsedMatchData, type ParsedMatchData } from "./data/parseMatch";
 
 /**
- * Pretty-print unknown JSON objects safely.
- * Useful while you’re still exploring the shape of `match_round_events_extended.json`.
+ * Safely preview unknown JSON. Great during early UI work when schemas are still fluid.
  */
 function safeJsonPreview(value: unknown, maxChars = 9000): string {
   try {
@@ -31,39 +30,58 @@ function safeJsonPreview(value: unknown, maxChars = 9000): string {
 }
 
 /**
- * Determine the roster chip border colour based on team side.
- * - CT => lightblue
- * - T  => salmon
- * - other/unknown => divider
- *
- * We normalise because data sources love inventing new side strings.
+ * Normalise team-side naming, because data sources love being "creative".
+ * We only care about CT vs T for colour accents.
  */
-function sideBorderColour(sideRaw: unknown): string {
+function normaliseSide(sideRaw: unknown): { isCT: boolean; isT: boolean } {
   const side = String(sideRaw ?? "").toLowerCase();
   const isCT = side.includes("ct");
   const isT = side === "t" || side.includes("terror");
+  return { isCT, isT };
+}
+
+/**
+ * Border colour for roster chips (text stays black).
+ */
+function sideBorderColour(sideRaw: unknown): string {
+  const { isCT, isT } = normaliseSide(sideRaw);
   return isCT ? "lightblue" : isT ? "salmon" : "divider";
 }
 
+/**
+ * Sort "round_1, round_2, ..." by the numeric suffix.
+ */
+function sortRoundKeys(keys: string[]): string[] {
+  const toNum = (k: string) => {
+    const m = k.match(/\d+/);
+    return m ? Number(m[0]) : Number.POSITIVE_INFINITY;
+  };
+  return [...keys].sort((a, b) => toNum(a) - toNum(b));
+}
+
 export default function App() {
-  // --- Data loading state ---
+  // -----------------------------
+  // Data + error state
+  // -----------------------------
   const [data, setData] = useState<ParsedMatchData | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
-  // --- UI state ---
+  // -----------------------------
+  // UI state
+  // -----------------------------
   const [isMatchExpanded, setIsMatchExpanded] = useState(false);
   const [isRoundsOverviewOpen, setIsRoundsOverviewOpen] = useState(false);
+  const [isAccoladesOpen, setIsAccoladesOpen] = useState(false);
 
   /**
-   * Allow opening multiple rounds at once.
-   * We store open round keys in a Set for O(1) membership checks.
+   * Allow multiple rounds to be open simultaneously.
+   * `Set` gives O(1) membership checks.
    */
   const [openRoundKeys, setOpenRoundKeys] = useState<Set<string>>(new Set());
 
-  /**
-   * Load parsed match data once on mount.
-   * The `cancelled` flag prevents setting state after unmount.
-   */
+  // -----------------------------
+  // Load data once on mount
+  // -----------------------------
   useEffect(() => {
     let cancelled = false;
 
@@ -81,20 +99,18 @@ export default function App() {
     };
   }, []);
 
-  /**
-   * Extract `match_overview` from matchRoundEventsExtended (if present).
-   * Using `any` temporarily keeps us flexible while the schema evolves.
-   */
+  // -----------------------------
+  // Derived: match overview (from extended json)
+  // -----------------------------
   const matchOverview = useMemo(() => {
     const ext: any = data?.matchRoundEventsExtended;
     const mo = ext?.match_overview;
     return mo && typeof mo === "object" ? mo : null;
   }, [data]);
 
-  /**
-   * Extract the rounds dictionary from extended data:
-   * expected shape: { rounds: { round_1: {...}, round_2: {...}, ... } }
-   */
+  // -----------------------------
+  // Derived: rounds dictionary (from extended json)
+  // -----------------------------
   const roundsMap = useMemo(() => {
     const ext: any = data?.matchRoundEventsExtended;
     const rounds = ext?.rounds;
@@ -104,24 +120,14 @@ export default function App() {
     return null;
   }, [data]);
 
-  /**
-   * Sort round keys naturally by round number (round_1, round_2, ...).
-   */
   const roundKeys = useMemo(() => {
     if (!roundsMap) return [];
-    const keys = Object.keys(roundsMap);
-
-    const toNum = (k: string) => {
-      const m = k.match(/\d+/);
-      return m ? Number(m[0]) : Number.POSITIVE_INFINITY;
-    };
-
-    return keys.sort((a, b) => toNum(a) - toNum(b));
+    return sortRoundKeys(Object.keys(roundsMap));
   }, [roundsMap]);
 
-  /**
-   * Toggle a round open/closed without closing others.
-   */
+  // -----------------------------
+  // Actions / toggles
+  // -----------------------------
   const toggleRound = (rk: string) => {
     setOpenRoundKeys((prev) => {
       const next = new Set(prev);
@@ -132,14 +138,15 @@ export default function App() {
   };
 
   /**
-   * Toggle match expansion.
-   * When collapsing, also collapse rounds UI for a clean state reset.
+   * Expand/collapse match details.
+   * When collapsing, also reset sub-panels to keep the UI sane.
    */
   const toggleMatchExpanded = () => {
     setIsMatchExpanded((prev) => {
       const next = !prev;
       if (!next) {
         setIsRoundsOverviewOpen(false);
+        setIsAccoladesOpen(false);
         setOpenRoundKeys(new Set());
       }
       return next;
@@ -148,64 +155,81 @@ export default function App() {
 
   /**
    * Toggle rounds overview.
-   * When opening, clear which rounds are open for a clean start.
+   * When closing it, also close the accolades panel.
    */
   const toggleRoundsOverview = () => {
     setIsRoundsOverviewOpen((prev) => {
       const next = !prev;
       if (next) setOpenRoundKeys(new Set());
+      if (!next) setIsAccoladesOpen(false);
       return next;
     });
   };
 
   /**
-   * Render a single "roster card" for start/end.
-   * This removes duplicated JSX and keeps roster styles consistent.
+   * Toggle accolade panel (only available under open rounds overview section).
    */
-  const renderRosterCard = (
-    title: string,
-    rosterBlock: Record<string, { side: string; roster: string[] }>
-  ) => (
-    <Card variant="outlined" sx={{ height: "100%" }}>
-      <CardContent>
-        <Typography fontWeight={900} sx={{ textAlign: "center", mb: 1 }}>
-          {title}
-        </Typography>
+  const toggleAccolades = () => setIsAccoladesOpen((v) => !v);
 
-        <Grid container spacing={2}>
-          {Object.entries(rosterBlock).map(([teamName, team]) => {
-            const border = sideBorderColour(team.side);
+  // -----------------------------
+  // Styles: reuse button look
+  // -----------------------------
+  const primaryButtonSx = {
+    borderRadius: 3,
+    textTransform: "none" as const,
+    fontWeight: 900,
+    px: 3,
+    py: 1.1,
+    userSelect: "none" as const,
+    opacity: 0.9,
+  };
 
-            return (
-              <Grid item xs={12} sm={6} key={`${title}-${teamName}`}>
-                <Typography fontWeight={900}>{teamName}</Typography>
+  const secondaryButtonSx = {
+    ...primaryButtonSx,
+    px: 2.25,
+    py: 0.9,
+    opacity: 0.88,
+  };
 
-                <Typography variant="body2" sx={{ opacity: 0.75, mb: 1 }}>
-                  Side: {team.side}
-                </Typography>
+  // -----------------------------
+  // Render helpers
+  // -----------------------------
+  const renderRosterBlock = (block: Record<string, { side: string; roster: string[] }>) => (
+    <Grid container spacing={2}>
+      {Object.entries(block).map(([teamName, team]) => {
+        const border = sideBorderColour(team.side);
 
-                <Stack spacing={0.5}>
-                  {team.roster.map((p) => (
-                    <Chip
-                      key={p}
-                      label={p}
-                      size="small"
-                      variant="outlined"
-                      sx={{
-                        color: "text.primary", // keep text black
-                        borderColor: border, // colour via border only
-                        "& .MuiChip-label": { fontWeight: 500 }, // lighter font weight
-                      }}
-                    />
-                  ))}
-                </Stack>
-              </Grid>
-            );
-          })}
-        </Grid>
-      </CardContent>
-    </Card>
+        return (
+          <Grid item xs={12} sm={6} key={teamName}>
+            <Typography fontWeight={900}>{teamName}</Typography>
+            <Typography variant="body2" sx={{ opacity: 0.75, mb: 1 }}>
+              Side: {team.side}
+            </Typography>
+
+            <Stack spacing={0.5}>
+              {team.roster.map((p) => (
+                <Chip
+                  key={p}
+                  label={p}
+                  size="small"
+                  variant="outlined"
+                  sx={{
+                    color: "text.primary", // keep text black
+                    borderColor: border, // CT/T colour is border only
+                    "& .MuiChip-label": { fontWeight: 500 }, // slightly lighter
+                  }}
+                />
+              ))}
+            </Stack>
+          </Grid>
+        );
+      })}
+    </Grid>
   );
+
+  // Convenience refs
+  const faceit = data?.faceitKeyEvents;
+  const accolades = data?.matchStartEndRosterAccolade?.accolade_events ?? [];
 
   return (
     <Box
@@ -217,7 +241,7 @@ export default function App() {
         alignItems: "flex-start",
       }}
     >
-      {/* Main page container */}
+      {/* Main layout container */}
       <Box
         sx={{
           width: "100%",
@@ -227,15 +251,15 @@ export default function App() {
           py: 4,
         }}
       >
-        {/* Page header */}
+        {/* Header */}
         <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 2 }}>
           <SportsEsportsIcon />
           <Typography variant="h5" fontWeight={700}>
-            BLASTlog - CS Match Logs Analyser
+            Blastlog - CS Match Logs Analyser
           </Typography>
         </Stack>
 
-        {/* Errors */}
+        {/* Error state */}
         {err && <Alert severity="error">{err}</Alert>}
 
         {/* Loading state */}
@@ -247,17 +271,16 @@ export default function App() {
         )}
 
         {/* Main content */}
-        {data && (
+        {data && faceit && (
           <Box>
             <Card sx={{ mb: 3 }}>
               <CardContent>
                 <Stack spacing={1}>
-                  {/* Match headline row */}
+                  {/* Match headline + expand */}
                   <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2}>
                     <Typography variant="h6" fontWeight={900}>
-                      Date: {data.faceitKeyEvents.date} • {data.faceitKeyEvents.team_1} vs{" "}
-                      {data.faceitKeyEvents.team_2} • Final score: {data.faceitKeyEvents.final_score} • Map:{" "}
-                      {data.faceitKeyEvents.map}
+                      Date: {faceit.date} • {faceit.team_1} vs {faceit.team_2} • Final score: {faceit.final_score} •
+                      Map: {faceit.map}
                     </Typography>
 
                     <Chip
@@ -270,56 +293,71 @@ export default function App() {
                     />
                   </Stack>
 
-                  {/* Expanded area */}
+                  {/* Expanded section */}
                   {isMatchExpanded && (
                     <Box sx={{ mt: 1 }}>
                       <Divider sx={{ mb: 2 }} />
 
+                      {/* Overview */}
                       <Typography variant="subtitle1" fontWeight={900} sx={{ textAlign: "center", mb: 1 }}>
                         Overview
                       </Typography>
 
                       <Stack spacing={1.25} alignItems="center" sx={{ width: "100%" }}>
-                        {/* Start/End */}
                         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap justifyContent="center">
-                          <Chip label={`Start: ${data.faceitKeyEvents.start_dt}`} />
-                          <Chip label={`End: ${data.faceitKeyEvents.end_dt}`} />
+                          <Chip label={`Start: ${faceit.start_dt}`} />
+                          <Chip label={`End: ${faceit.end_dt}`} />
                         </Stack>
 
-                        {/* Winner */}
                         <Chip
-                          label={`Winning team: ${data.faceitKeyEvents.winning_team}`}
+                          label={`Winning team: ${faceit.winning_team}`}
                           color="success"
                           variant="filled"
                           sx={{ fontWeight: 800, opacity: 0.9 }}
                         />
 
-                        {/* Totals */}
                         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap justifyContent="center">
-                          <Chip label={`Total match length (hh:mm:ss): ${data.faceitKeyEvents.match_length}`} />
-                          <Chip label={`Total rounds: ${data.faceitKeyEvents.total_rounds}`} />
+                          <Chip label={`Total match length (hh:mm:ss): ${faceit.match_length}`} />
+                          <Chip label={`Total rounds: ${faceit.total_rounds}`} />
                         </Stack>
 
-                        {/* Everything below depends on extended overview existing */}
+                        {/* Everything below relies on extended overview being present */}
                         {matchOverview && (
                           <>
                             <Divider sx={{ width: "100%", my: 1 }} />
 
+                            {/* Teams */}
                             <Typography variant="subtitle1" fontWeight={900} sx={{ textAlign: "center", mb: 1 }}>
                               Teams
                             </Typography>
 
                             <Grid container spacing={2} sx={{ mb: 1 }} justifyContent="center">
                               <Grid item xs={12} md={6}>
-                                {renderRosterCard("Match start", data.matchStartEndRosterAccolade.match_start)}
+                                <Card variant="outlined" sx={{ height: "100%" }}>
+                                  <CardContent>
+                                    <Typography fontWeight={900} sx={{ textAlign: "center", mb: 1 }}>
+                                      Match start
+                                    </Typography>
+                                    {renderRosterBlock(data.matchStartEndRosterAccolade.match_start)}
+                                  </CardContent>
+                                </Card>
                               </Grid>
+
                               <Grid item xs={12} md={6}>
-                                {renderRosterCard("Match end", data.matchStartEndRosterAccolade.match_end)}
+                                <Card variant="outlined" sx={{ height: "100%" }}>
+                                  <CardContent>
+                                    <Typography fontWeight={900} sx={{ textAlign: "center", mb: 1 }}>
+                                      Match end
+                                    </Typography>
+                                    {renderRosterBlock(data.matchStartEndRosterAccolade.match_end)}
+                                  </CardContent>
+                                </Card>
                               </Grid>
                             </Grid>
 
                             <Divider sx={{ width: "100%", my: 1 }} />
 
+                            {/* Highlights */}
                             <Typography variant="subtitle1" fontWeight={900} sx={{ textAlign: "center", mb: 1 }}>
                               Highlights
                             </Typography>
@@ -348,39 +386,27 @@ export default function App() {
 
                             <Divider sx={{ width: "100%", my: 2 }} />
 
+                            {/* Rounds overview */}
                             <Typography variant="subtitle1" fontWeight={900} sx={{ textAlign: "center", mb: 1 }}>
                               Rounds overview
                             </Typography>
 
                             <Stack alignItems="center" sx={{ mb: 2 }}>
-                              <Button
-                                variant="contained"
-                                size="large"
-                                sx={{
-                                  borderRadius: 3,
-                                  textTransform: "none",
-                                  fontWeight: 900,
-                                  px: 3,
-                                  py: 1.1,
-                                  userSelect: "none",
-                                  opacity: 0.9,
-                                }}
-                                onClick={toggleRoundsOverview}
-                              >
+                              <Button variant="contained" size="large" sx={primaryButtonSx} onClick={toggleRoundsOverview}>
                                 {isRoundsOverviewOpen ? "Hide" : "View"}
                               </Button>
                             </Stack>
 
-                            {/* Rounds grid */}
                             {isRoundsOverviewOpen && (
                               <Box sx={{ display: "flex", justifyContent: "center" }}>
                                 <Box sx={{ width: "100%", maxWidth: 980 }}>
+                                  {/* Rounds grid */}
                                   {!roundsMap ? (
                                     <Alert severity="warning">
                                       Couldn’t find <code>matchRoundEventsExtended.rounds</code> in the JSON.
                                     </Alert>
                                   ) : (
-                                    <Grid container spacing={2} justifyContent="center">
+                                    <Grid container spacing={2} justifyContent="center" sx={{ mb: 2 }}>
                                       {roundKeys.map((rk) => {
                                         const isOpen = openRoundKeys.has(rk);
                                         const roundData = (roundsMap as any)[rk];
@@ -393,11 +419,7 @@ export default function App() {
                                               onClick={() => toggleRound(rk)}
                                             >
                                               <CardContent sx={{ py: 1.75, "&:last-child": { pb: 1.75 } }}>
-                                                <Stack
-                                                  direction="row"
-                                                  justifyContent="space-between"
-                                                  alignItems="center"
-                                                >
+                                                <Stack direction="row" justifyContent="space-between" alignItems="center">
                                                   <Typography fontWeight={900}>{rk}</Typography>
                                                   <Chip
                                                     label={isOpen ? "Hide" : "Open"}
@@ -432,6 +454,44 @@ export default function App() {
                                         );
                                       })}
                                     </Grid>
+                                  )}
+
+                                  {/* ✅ Separator AFTER rounds overview */}
+                                  <Divider sx={{ width: "100%", my: 2 }} />
+
+                                  {/* ✅ Small bonus button */}
+                                  <Stack alignItems="center" sx={{ mb: 2 }}>
+                                    <Button
+                                      variant="contained"
+                                      size="small"
+                                      sx={secondaryButtonSx}
+                                      onClick={toggleAccolades}
+                                    >
+                                      {isAccoladesOpen ? "Hide" : "See Bonus: Accolade events!"}
+                                    </Button>
+                                  </Stack>
+
+                                  {/* ✅ Accolade events panel */}
+                                  {isAccoladesOpen && (
+                                    <Card variant="outlined">
+                                      <CardContent>
+                                        <Typography fontWeight={900} sx={{ mb: 1 }}>
+                                          Accolade events
+                                        </Typography>
+
+                                        {accolades.length ? (
+                                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                                            {accolades.map((a, idx) => (
+                                              <Chip key={idx} label={a} />
+                                            ))}
+                                          </Stack>
+                                        ) : (
+                                          <Typography sx={{ opacity: 0.7 }}>
+                                            No accolade events found in this match.
+                                          </Typography>
+                                        )}
+                                      </CardContent>
+                                    </Card>
                                   )}
                                 </Box>
                               </Box>
