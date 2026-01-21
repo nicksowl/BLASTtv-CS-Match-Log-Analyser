@@ -1,4 +1,3 @@
-// frontend/src/App.tsx
 import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
@@ -18,7 +17,7 @@ import SportsEsportsIcon from "@mui/icons-material/SportsEsports";
 import { loadParsedMatchData, type ParsedMatchData } from "./data/parseMatch";
 
 /**
- * Safely preview unknown JSON. Great during early UI work when schemas are still fluid.
+ * Safely preview unknown JSON.
  */
 function safeJsonPreview(value: unknown, maxChars = 9000): string {
   try {
@@ -30,8 +29,7 @@ function safeJsonPreview(value: unknown, maxChars = 9000): string {
 }
 
 /**
- * Normalise team-side naming, because data sources love being "creative".
- * We only care about CT vs T for colour accents.
+ * Normalise team-side naming conventions.
  */
 function normaliseSide(sideRaw: unknown): { isCT: boolean; isT: boolean } {
   const side = String(sideRaw ?? "").toLowerCase();
@@ -456,10 +454,9 @@ export default function App() {
                                     </Grid>
                                   )}
 
-                                  {/* ✅ Separator AFTER rounds overview */}
                                   <Divider sx={{ width: "100%", my: 2 }} />
 
-                                  {/* ✅ Small bonus button */}
+                                  {/* bonus button */}
                                   <Stack alignItems="center" sx={{ mb: 2 }}>
                                     <Button
                                       variant="contained"
@@ -471,7 +468,7 @@ export default function App() {
                                     </Button>
                                   </Stack>
 
-                                  {/* ✅ Accolade events panel */}
+                                  {/* Accolade events panel */}
                                   {isAccoladesOpen && (
                                     <Card variant="outlined">
                                       <CardContent>
