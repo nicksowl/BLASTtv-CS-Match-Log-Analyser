@@ -8,10 +8,10 @@ import {
   Chip,
   CircularProgress,
   Divider,
-  Grid,
   Stack,
   Typography,
 } from "@mui/material";
+import Grid from "@mui/material/Grid";
 import SportsEsportsIcon from "@mui/icons-material/SportsEsports";
 
 import { loadParsedMatchData, type ParsedMatchData } from "./data/parseMatch";
@@ -198,7 +198,7 @@ export default function App() {
         const border = sideBorderColour(team.side);
 
         return (
-          <Grid item xs={12} sm={6} key={teamName}>
+          <Grid size={{ xs: 12, sm: 6 }} key={teamName}>
             <Typography fontWeight={900}>{teamName}</Typography>
             <Typography variant="body2" sx={{ opacity: 0.75, mb: 1 }}>
               Side: {team.side}
@@ -330,7 +330,7 @@ export default function App() {
                             </Typography>
 
                             <Grid container spacing={2} sx={{ mb: 1 }} justifyContent="center">
-                              <Grid item xs={12} md={6}>
+                              <Grid size={{ xs: 12, sm: 6 }}>
                                 <Card variant="outlined" sx={{ height: "100%" }}>
                                   <CardContent>
                                     <Typography fontWeight={900} sx={{ textAlign: "center", mb: 1 }}>
@@ -341,7 +341,7 @@ export default function App() {
                                 </Card>
                               </Grid>
 
-                              <Grid item xs={12} md={6}>
+                              <Grid size={{ xs: 12, sm: 6 }}>
                                 <Card variant="outlined" sx={{ height: "100%" }}>
                                   <CardContent>
                                     <Typography fontWeight={900} sx={{ textAlign: "center", mb: 1 }}>
@@ -410,7 +410,7 @@ export default function App() {
                                         const roundData = (roundsMap as any)[rk];
 
                                         return (
-                                          <Grid item xs={12} sm={6} md={4} key={rk}>
+                                          <Grid size={{ xs: 12, sm: 6, md: 4 }} key={rk}>
                                             <Card
                                               variant="outlined"
                                               sx={{ width: "100%", height: "100%", cursor: "pointer" }}
