@@ -6,7 +6,7 @@ This project takes **CS match server log `.txt` files** as input, extracts and a
 
 ---
 
-## Run App in Docker (Demo)
+## Run App in Docker (Demo) Mac/Linux
 
 1.	Make sure Docker is installed and running
 2.	Make entrypoint executable
@@ -16,11 +16,27 @@ This project takes **CS match server log `.txt` files** as input, extracts and a
     ```bash
     docker build -t blast-cs-match-log-analyser .
 4. Run container (mount local data/ into the container)
+    Mac/Linux
     ```bash
     docker run --rm -p 8000:8000 \
     -v "$(pwd)/data:/app/data" \
     blast-cs-match-log-analyser
-5.	Access app at http://0.0.0.0:8000
+5.	Access app at http://0.0.0.0:8000 or http://localhost:8000/
+
+
+## Run App in Docker (Demo) Windows/PowerShell
+
+1.	Make sure Docker is installed and running
+2.  Run
+    ```bash
+    (Get-Content .\docker\entrypoint.sh) -join "`n" | Set-Content -NoNewline .\docker\entrypoint.sh
+3.	Build container
+    ```bash
+    docker build -t blast-cs-match-log-analyser .
+4.  Run container
+    ```bash
+    docker run --rm -p 8000:8000 -v "${PWD}\data:/app/data" blast-cs-match-log-analyser:latest
+5.	Access app at http://0.0.0.0:8000 or http://localhost:8000/
 
 ---
 
@@ -41,7 +57,7 @@ This project takes **CS match server log `.txt` files** as input, extracts and a
 
 ---
 
-## Run Production (Local)
+## Run Production (Local Mac/Linux)
 
 ### Backend
 

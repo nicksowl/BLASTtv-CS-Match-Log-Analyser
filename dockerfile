@@ -35,4 +35,4 @@ RUN chmod +x /entrypoint.sh
 RUN mkdir -p /app/data/raw /app/data/processed
 
 EXPOSE 8000
-ENTRYPOINT ["/entrypoint.sh"]
+ENTRYPOINT ["sh", "/entrypoint.sh"]
