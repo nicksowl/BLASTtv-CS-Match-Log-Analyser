@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import json
 import re
 import sys
@@ -360,7 +358,6 @@ def transform(input_data: dict[str, Any]) -> dict[str, Any]:
 def write_json_safely(path: Path, payload: dict[str, Any]) -> None:
     """
     Write JSON to disk with a clear error if it fails.
-    This is the "fallback" you asked for: it fails loudly and cleanly.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
@@ -372,7 +369,6 @@ def write_json_safely(path: Path, payload: dict[str, Any]) -> None:
 def run() -> int:
     """
     Main execution wrapper.
-    Returns an exit code (0 success, 1 failure) instead of exploding silently.
     """
     try:
         if not PATH_IN.exists():

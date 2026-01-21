@@ -30,14 +30,13 @@ Snapshot = dict[str, dict[str, Any]]
 
 @dataclass(frozen=True, slots=True)
 class MatchData:
-    """Extracted match slice we operate on (only lines within frame)."""
     start_ts: str
     end_ts: str
     events: list[str]
 
 
 # -----------------------
-# Regex (compiled once)
+# Regex
 # -----------------------
 LINE_TS_RE = re.compile(
     r'^(?P<ts>\d{1,2}/\d{1,2}/\d{4}\s*-\s*\d{2}:\d{2}:\d{2}):\s*'
@@ -67,7 +66,6 @@ def parse_ts(ts: str) -> datetime:
 
 
 def extract_line_ts(line: str) -> Optional[str]:
-    """Return timestamp string from a log line (or None if absent)."""
     m = LINE_TS_RE.match(line)
     return m.group("ts") if m else None
 
@@ -102,12 +100,11 @@ def iter_lines_in_range(path: Path, start_ts: str, end_ts: str) -> Iterable[str]
 
 
 def extract_events_in_range(path: Path, start_ts: str, end_ts: str) -> list[str]:
-    """Materialise all lines in range into a list (our working dataset)."""
     return list(iter_lines_in_range(path, start_ts, end_ts))
 
 
 # -----------------------
-# Match understanding
+# Match 
 # -----------------------
 def team_names_at_ts(events: list[str], target_ts: str) -> TeamMap:
     """
@@ -240,7 +237,6 @@ def build_snapshot(team_map: Mapping[Side, str], roster_by_side: Mapping[Side, l
 # Accolades
 # -----------------------
 def normalise_whitespace(s: str) -> str:
-    """Replace tabs with spaces and collapse repeated spaces."""
     s = TAB_RE.sub(" ", s)
     s = MULTISPACE_RE.sub(" ", s)
     return s.strip()
