@@ -57,7 +57,7 @@ This project takes **CS match server log `.txt` files** as input, extracts and a
 
 ---
 
-## Run Production (Local Mac/Linux)
+## Run Development (Local Mac/Linux)
 
 ### Backend
 
