@@ -7,7 +7,7 @@ from typing import Optional, Tuple, List, Dict, Union
 
 
 # ----------------------------
-# Regex patterns (compiled once)
+# Regex
 # ----------------------------
 
 FACEIT_ANY_RE = re.compile(r"FACEIT\^*", re.IGNORECASE)
@@ -61,7 +61,7 @@ class ParsedLog:
 
 
 # ----------------------------
-# Low-level helpers
+# helpers
 # ----------------------------
 
 def extract_faceit_lines(log_path: Union[str, Path]) -> List[str]:
@@ -148,7 +148,6 @@ def calculate_match_length_pretty(start_dt: Optional[str], end_dt: Optional[str]
 
 def calculate_total_rounds(log_path: Union[str, Path]) -> Optional[int]:
     """
-    Despite the name, this returns the round count for this match by extracting:
       RoundsPlayed: <n>
     """
     path = Path(log_path)
@@ -163,7 +162,7 @@ def calculate_total_rounds(log_path: Union[str, Path]) -> Optional[int]:
 
 
 # ----------------------------
-# High-level extraction
+# extraction
 # ----------------------------
 
 def extract_faceit_match_key_events(
@@ -226,7 +225,7 @@ def extract_faceit_match_key_events(
         "team_2": team_2,
         "winning_team": winning_team,
         "final_score": final_score,
-        "total_rounds": total_rounds,  # actually rounds played (e.g. 22)
+        "total_rounds": total_rounds,
     }
 
 
@@ -253,7 +252,7 @@ def dump_json(data: Dict[str, JSONValue], out_path: Union[str, Path]) -> Path:
 
 
 # ----------------------------
-# CLI entry point (for quick testing)
+# CLI
 # ----------------------------
 
 if __name__ == "__main__":
